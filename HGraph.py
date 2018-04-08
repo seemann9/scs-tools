@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 from pygraphviz import *
 from itertools import permutations
 from random import choice
