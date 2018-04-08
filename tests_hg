@@ -1,0 +1,21 @@
+Best: ['ababa', 'bbabab', 'bababbb']
+hg_greedy: 13 optimal: 10 greedy: 13 score: 1.3
+Best: ['abaabab', 'baabaab', 'babaaba']
+hg_greedy: 14 optimal: 11 greedy: 14 score: 1.2727272727272727
+Best: ['bab', 'bacba', 'cbacb', 'acbac']
+hg_greedy: 10 optimal: 8 greedy: 9 score: 1.25
+Best: ['ab', 'acac', 'ccacca', 'caccac', 'accacc']
+hg_greedy: 13 optimal: 10 greedy: 10 score: 1.3
+Max Score: 1.2105263157894737
+Best: ['abbbbbaabb', 'baabbabbba', 'babbbaabba']
+
+Best: ['aabbabba', 'abbabbaa', 'bbabbabb']
+hg_greedy: 17 optimal: 12 greedy: 17 score: 1.4166666666666667
+
+Best: ['aababb', 'abaaba', 'baabaa', 'bbbaab']
+hg_greedy: 16 optimal: 12 greedy: 16 score: 1.3333333333333333
+
+Best: ['aabba', 'abbaa', 'baabb', 'babaa', 'bbaab']
+hg_greedy: 13 optimal: 10 greedy: 13 score: 1.3
+
+

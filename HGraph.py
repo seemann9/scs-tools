@@ -1,5 +1,5 @@
-from collections import deque
-from collections import Counter
+#!/usr/bin/python3
+
 from pygraphviz import *
 from itertools import permutations
 from random import choice
@@ -9,42 +9,9 @@ from random import random
 import sys
 from os import system
 import imageio
+from utils import *
 
-#vertex number 0 - eps
-MAXN = 100
-MAXK = 5
-
-def bfs(n, e, st):
-    used = [False] * n
-    d = [float('inf')] * n
-    d[st] = 0
-    q = deque()
-    q.append(st)
-    used[st] = True
-    while len(q) > 0:
-        v = q.popleft()
-        for u in e[v]:
-            if not used[u]:
-                used[u] = True
-                q.append(u)
-                d[u] = d[v] + 1
-    return d
-
-def overlap(s1, s2):
-    for l in range(min(len(s1), len(s2)) - 1, 0, -1):
-        if s1[-l:] == s2[:l]:
-            return l
-    return 0
-
-def uniteCounters(a, b):
-    res = Counter()
-    for k, v in a.items():
-        res[k] += v
-    for k, v in b.items():
-        res[k] += v
-    return res
-
-class HG:
+class HGraph:
     def __init__(self):
         self.frameCnt = 1
         self.n = 0
@@ -52,16 +19,16 @@ class HG:
         self.e = []
         self.cur_edges = []
 
-    def read(self, fname):
+    def buildFromGraphFile(self, fname):
         f = open(fname)
         self.n, m = map(int, f.readline().strip().split())
         self.e = [[] for _ in range(self.n)]
         for i in range(m):
             u, v = map(int, f.readline().strip().split())
             self.e[u].append(v)
-        g.mark()
+        self.setLabels()
 
-    def fromStrings(self, strings):
+    def buildFromStrings(self, strings):
         substrings = set()
         for s in strings:
             for i in range(len(s)):
@@ -81,66 +48,22 @@ class HG:
             if len(s) > 0:
                 self.e[ssnum[s[:-1]]].append(ssnum[s])
                 self.e[ssnum[s]].append(ssnum[s[1:]])
-        self.mark()
+        self.setLabels()
 
-    def visualize(self, fname='graph.png'):
-        G = AGraph(strict=False, directed=True)
-        layers = [[] for _ in range(self.n)]
-        for v in range(self.n):
-            #self.string[v] = v
-            layers[self.layer[v]].append(self.string[v] if v != 0 else 'eps')
-        for v in range(self.n):
-            for u in self.e[v]:
-                G.add_edge(self.string[v] if v != 0 else 'eps', self.string[u] if u != 0 else 'eps', 'direct')
-        layers = reversed(layers)
-        for layer in layers:
-            if len(layer) > 0:
-                G.add_subgraph(layer, rank='same')
-            for i in range(len(layer) - 1):
-                G.add_edge(layer[i], layer[i + 1], style='invis')
-        for v in range(self.n):
-            if self.term[v]:
-                n = G.get_node(self.string[v] if v != 0 else 'eps')
-                n.attr['shape'] = 'box'
-        for i in range(0, len(self.hg_greedy_walk) - 1):
-            v = self.hg_greedy_walk[i]
-            u = self.hg_greedy_walk[i + 1]
-            G.add_edge(self.string[v] if v != 0 else 'eps', self.string[u] if u != 0 else 'eps',color='red')
+    def buildFromStringsFile(self, fname):
+        f = open(fname)
+        strings = []
+        for s in f:
+            strings.append(s.strip())
+        self.buildFromStrings(strings)
 
-        G.layout(prog='dot')
-#        for i in range(0, len(self.optimal_walk) - 1):
-#            v = self.optimal_walk[i]
-#            u = self.optimal_walk[i + 1]
-#            G.get_edge(self.string[v] if v != 0 else 'eps', self.string[u] if u != 0 else 'eps').attr['color'] = 'green'
-        for v in range(self.n):
-            for u in self.e[v]:
-                if self.fall_taken[(v, u)] > 0:
-                    e = G.get_edge(self.string[v] if v != 0 else 'eps', self.string[u] if u != 0 else 'eps', 'direct')
-                    e.attr['color'] = 'green'
-                    if self.fall_taken[(v, u)] > 1:
-                        e.attr['label'] = str(self.fall_taken[(v, u)])
-        for v, u in self.cur_edges:
-            e = G.get_edge(self.string[v] if v != 0 else 'eps', self.string[u] if u != 0 else 'eps', 'direct')
-            e.attr['color'] = 'blue'
-            e.attr['penwidth'] = '1.5'
-
-
-#        print([v.attr['pos'] for v in G.nodes()])
-        G.draw(fname)
-        for v, u in self.cur_edges:
-            e = G.get_edge(self.string[v] if v != 0 else 'eps', self.string[u] if u != 0 else 'eps', 'direct')
-            e.attr['color'] = 'black'
-            e.attr['penwidth'] = '1.0'
-        self.cur_edges = []
-
-
-    def mark(self):
+    def setLabels(self):
         self.ue = [[] for _ in range(self.n)]
         for v in range(self.n):
             for u in self.e[v]:
                 self.ue[v].append(u)
                 self.ue[u].append(v)
-        self.layer = bfs(self.n, self.ue, 0)
+        self.layer = getDistances(self.n, self.ue, 0)
         self.downto = [0] * self.n
         self.downfrom = [0] * self.n
         self.term = [True] * self.n
@@ -163,6 +86,11 @@ class HG:
             self.string[v] = self.string[self.downfrom[v]] + self.string[self.downto[v]][-1]
             assert(self.string[v] == self.string[self.downfrom[v]][0] + self.string[self.downto[v]])
 
+        self.label = [''] * self.n
+        self.label[0] = 'eps'
+        for v in range(1, self.n):
+            self.label[v] = self.string[v];
+
         self.tonum = {}
         for v in range(self.n):
             self.tonum[self.string[v]] = v
@@ -171,7 +99,85 @@ class HG:
             if self.term[v]:
                 self.termStrings.append(self.string[v])
 
-    def print(self):
+    def buildDrawGraph(self):
+        self.drawGraph = AGraph(strict=False, directed=True)
+        layers = [[] for _ in range(self.n)]
+        for v in range(self.n):
+            layers[self.layer[v]].append(self.label[v])
+        for v in range(self.n):
+            for u in self.e[v]:
+                self.drawGraph.add_edge(self.label[v], self.label[u], 'direct')
+        layers = reversed(layers)
+        for layer in layers:
+            if len(layer) > 0:
+                self.drawGraph.add_subgraph(layer, rank='same')
+            for i in range(len(layer) - 1):
+                self.drawGraph.add_edge(layer[i], layer[i + 1], style='invis')
+        for v in range(self.n):
+            if self.term[v]:
+                n = self.drawGraph.get_node(self.label[v])
+                n.attr['shape'] = 'box'
+                
+    def drawEdges(self, edges, attr = {}):
+        for edge, cnt in edges.items():
+            if cnt == 0:
+                continue
+            v, u = edge
+            e = self.drawGraph.get_edge(self.label[v], self.label[u], 'direct')
+            for k, v in attr.items():
+                e.attr[k] = v
+            if cnt > 1:
+                e.attr['label'] = str(cnt)
+
+    def drawEdgesExtra(self, edges, attr = {}):
+        for edge, cnt in edges.items():
+            if cnt == 0:
+                continue
+            v, u = edge
+            self.drawGraph.add_edge(self.label[v], self.label[u], color='red')
+            #TODO deal with attr!!!
+            #for k, v in attr.items():
+            #    e.attr[k] = v
+
+    #TODO rename
+    #TODO add legends to drawings
+    def draw(self, fname='graph.png'):
+        self.buildDrawGraph()
+        self.drawEdgesExtra(getEdgeCounterFromSequence(self.HGGreedyWalk), {'color' : 'red'})
+        self.drawGraph.layout(prog='dot')
+
+        self.drawEdges(self.fall_taken, {'color' : 'green'})
+
+        self.drawEdges(getEdgeCounterFromList(self.cur_edges), {'color' : 'blue', 'penwidth' : '1.5'})
+
+        self.drawGraph.draw(fname)
+
+        #self.drawEdges(getEdgeCounterFromList(self.cur_edges), {'color' : 'black', 'penwidth' : '1.0'})
+        self.cur_edges = []
+
+    def drawGreedyAndOptimal(self, fname='graph.png'):
+        self.buildDrawGraph()
+        self.drawEdgesExtra(getEdgeCounterFromSequence(self.HGGreedyWalk), {'color' : 'red'})
+        self.drawGraph.layout(prog='dot')
+        self.drawEdges(getEdgeCounterFromSequence(self.optimalWalk), {'color' : 'green'})
+
+        self.drawGraph.draw(fname)
+
+    #TODO parameterize
+    def drawFrame(self):
+        fname = 'tmp/%03d.png' % self.frameCnt
+        self.frameCnt += 1
+        self.draw(fname)
+        self.images.append(imageio.imread(fname))
+
+    #Needs avconv with mp4 codecs installed on the system
+    def makeVideo(self):
+        system('for f in tmp/???.png; do convert $f -resize 200% $f; done')
+        system('rm video.mp4')
+        system('avconv -r 1 -i tmp/%03d.png -b:v 1000k video.mp4 > /dev/null 2>&1')
+
+
+    def printDebug(self):
         print(self.n, 'vertices')
         print('Layer:', self.layer)
         print('Downto', self.downto)
@@ -179,21 +185,21 @@ class HG:
         print('Term', self.term)
         print('String', self.string)
 
-    def eulerian(self, v, start_layer, taken, todeg, fromdeg, used):
+    def isEulerian(self, v, startLayer, taken, todeg, fromdeg, used):
         used[v] = True
         if todeg[v] != fromdeg[v]:
             return False
-        if self.layer[v] < start_layer:
+        if self.layer[v] < startLayer:
             return False
         for u in self.e[v]:
             if taken[(v, u)] == 0:
                 continue
             if not used[u]:
-                if not self.eulerian(u, start_layer, taken, todeg, fromdeg, used):
+                if not self.isEulerian(u, startLayer, taken, todeg, fromdeg, used):
                     return False
         return True
 
-    def get_walk(self, v, taken, fromdeg):
+    def getWalkFromTaken(self, v, taken, fromdeg):
         st = deque()
         st.append(v)
         walk = []
@@ -211,7 +217,7 @@ class HG:
                         break
         return list(reversed(walk))
 
-    def hg_greedy(self, cycle_walk=False):
+    def getHGGreedy(self, cycle_walk=False):
         taken = Counter()
         todeg = [0] * self.n
         fromdeg = [0] * self.n
@@ -237,7 +243,7 @@ class HG:
 
             elif todeg[v] + fromdeg[v] > 0:
                 used = [False] * self.n
-                if self.eulerian(v, self.layer[v], taken, todeg, fromdeg, used):
+                if self.isEulerian(v, self.layer[v], taken, todeg, fromdeg, used):
                     if cycle_walk:
                         flag = False
                         for u in range(self.n):
@@ -245,9 +251,6 @@ class HG:
                                 flag = True
                                 break
                         if not flag:
-#                            print('Break')
-#                            print(v)
-#                            print(used)
                             break
 
                     taken[(v, self.downto[v])] += 1
@@ -256,19 +259,17 @@ class HG:
                     taken[(self.downfrom[v], v)] += 1
                     fromdeg[self.downfrom[v]] += 1
                     todeg[v] += 1
-#        print(taken)
-#        print(fromdeg)
-#        print(todeg)
-        self.hg_greedy_walk = self.get_walk(0 if not cycle_walk else self.n - 1, taken, fromdeg)
-#        print(self.hg_greedy_walk)
+        self.HGGreedyWalk = self.getWalkFromTaken(0 if not cycle_walk else self.n - 1, taken, fromdeg)
         res = ''
-        for i in range(len(self.hg_greedy_walk) - 1):
-            v = self.hg_greedy_walk[i]
-            u = self.hg_greedy_walk[i + 1]
+        for i in range(len(self.HGGreedyWalk) - 1):
+            v = self.HGGreedyWalk[i]
+            u = self.HGGreedyWalk[i + 1]
             if self.layer[u] > self.layer[v]:
                 res += self.string[u][-1:]
         return res
-    def cycle_cover(self):
+
+    #TODO put in a general getWalk format
+    def getCycleCover(self):
         taken = Counter()
         todeg = [0] * self.n
         fromdeg = [0] * self.n
@@ -294,41 +295,30 @@ class HG:
 
         return taken
 
-    def dfs(self, v, taken, used):
+    def dfsOnTaken(self, v, taken, used):
         used[v] = True
         for u in self.e[v]:
             if taken[(v, u)] > 0 and not used[u]:
-                self.dfs(u, taken, used)
+                self.dfsOnTaken(u, taken, used)
 
-    def connected(self, taken):
+    def isConnectedByTaken(self, taken):
         used = [False] *self.n
-        self.dfs(0, taken, used)
+        self.dfsOnTaken(0, taken, used)
         for v in range(self.n):
             if self.term[v] and not used[v]:
                 return False
         return True
 
-    def drawFrame(self):
-            fname = 'tmp/%03d.png' % self.frameCnt
-            self.frameCnt += 1
-            self.visualize(fname)
-            self.images.append(imageio.imread(fname))
-
-    def makeVideo(self):
-        system('for f in tmp/???.png; do convert $f -resize 200% $f; done')
-        system('rm video.mp4')
-        system('avconv -r 1 -i tmp/%03d.png -b:v 1000k video.mp4 > /dev/null 2>&1')
-
     def correct_falling(self):
-        taken = self.cycle_cover()
-        walk = self.optimal_walk
+        taken = self.getCycleCover()
+        walk = self.optimalWalk
         for i in range(len(walk) - 1):
             taken[(walk[i], walk[i + 1])] += 1
         vlist = [[self.layer[v], self.n - v - 1] for v in range(self.n)]
         vlist.sort(reverse=True)
         flist = [self.n - b - 1 for a, b in vlist]
 
-        walk = self.hg_greedy_walk
+        walk = self.HGGreedyWalk
         greedy_taken = Counter()
         for i in range(len(walk) - 1):
             e = (walk[i], walk[i + 1])
@@ -381,7 +371,7 @@ class HG:
                     ut = (u, t)
                     taken[fu] += 1
                     taken[ut] += 1
-                if not self.connected(taken):
+                if not self.isConnectedByTaken(taken):
                     taken[fv] += 1
                     taken[vt] += 1
                     if self.layer[v] > 1:
@@ -401,7 +391,7 @@ class HG:
         #imageio.mimsave('movie.gif', self.images)
         self.makeVideo()
         self.fall_taken = dict(taken)
-        walk = self.hg_greedy_walk
+        walk = self.HGGreedyWalk
         for i in range(len(walk) - 1):
             e = (walk[i], walk[i + 1])
             taken[e] -= 1
@@ -411,8 +401,8 @@ class HG:
         return True
 
     def correct_falling2(self):
-        taken2 = self.cycle_cover()
-        walk = self.optimal_walk
+        taken2 = self.getCycleCover()
+        walk = self.optimalWalk
         taken = Counter()
         for i in range(len(walk) - 1):
             taken[(walk[i], walk[i + 1])] += 1
@@ -435,7 +425,7 @@ class HG:
                     ut = (u, t)
                     taken[fu] += 1
                     taken[ut] += 1
-                if not self.connected(uniteCounters(taken, taken2)):
+                if not self.isConnectedByTaken(uniteCounters(taken, taken2)):
                     taken[fv] += 1
                     taken[vt] += 1
                     if self.layer[v] > 1:
@@ -444,7 +434,7 @@ class HG:
                     break
         taken = uniteCounters(taken, taken2)
         self.fall_taken = dict(taken)
-        walk = self.hg_greedy_walk
+        walk = self.HGGreedyWalk
         for i in range(len(walk) - 1):
             e = (walk[i], walk[i + 1])
             taken[e] -= 1
@@ -452,7 +442,7 @@ class HG:
                 return False
         return True
 
-    def optimal(self):
+    def getOptimal(self):
         terminals = [v for v in range(self.n) if self.term[v]]
         sumlen = 0
         cnt = 0
@@ -465,9 +455,8 @@ class HG:
         d = [[0] * len(terminals) for _ in terminals]
         for v in terminals:
             for u in terminals:
-                d[tnum[v]][tnum[u]] = overlap(self.string[v], self.string[u])
+                d[tnum[v]][tnum[u]] = getOverlapLength(self.string[v], self.string[u])
 
-#        d = [[overlap(self.string[v], self.string[u]) if self.term[v] and self.term[u] else 0 for u in range(self.n)] for v in range(self.n)]
         mn = float('inf')
         for p in permutations(terminals):
             sum = sumlen
@@ -476,8 +465,6 @@ class HG:
             if sum < mn:
                 mn = sum
                 best = p
-        #TODO
-        #best = (27, 25, 28)
         res = self.string[best[0]]
         for i in range(len(best) - 1):
             t = self.string[best[i + 1]]
@@ -497,10 +484,10 @@ class HG:
                 u = self.downto[u]
                 walk.append(u)
             split = u
-        self.optimal_walk = walk
+        self.optimalWalk = walk
         return res
 
-    def greedy(self):
+    def getGreedyString(self):
         terminals = [self.string[v] for v in range(self.n) if self.term[v]]
         while len(terminals) > 1:
             mx = -1
@@ -508,7 +495,7 @@ class HG:
                 for t in terminals:
                     if s == t:
                         continue
-                    cur = overlap(s, t)
+                    cur = getOverlapLength(s, t)
                     if cur > mx:
                         mx = cur
                         best = (s, t)
@@ -520,6 +507,7 @@ class HG:
 
         return terminals[0]
 
+    #TODO describe parameters and rename
     def generate(self, k, h):
         downto = [0]
         downfrom = [0]
@@ -556,42 +544,44 @@ class HG:
                     break
             prev = cur
             prevpairs = curpairs
-        self.mark()
+        self.setLabels()
 
 def generateFromRandomStrings(n, l, k):
     alph = [chr(ord('a') + i) for i in range(k)]
     ss = []
     for i in range(n):
         ss.append(''.join([choice(alph) for _ in range(l)]))
-    g = HG()
-    g.fromStrings(ss)
+    g = HGraph()
+    g.buildFromStrings(ss)
     return g
 
 
 
-g = HG()
+g = HGraph()
 #g.read('hand1')
-#g.fromStrings(['aabaa', 'ababa', 'abbaa'])
-#g.fromStrings(['abab', 'baba', 'cbba'])
-#g.fromStrings(['aabba', 'baaab', 'baaba'])
+#TODO move to separate sample test files
+#g.buildFromStrings(['aabaa', 'ababa', 'abbaa'])
+#g.buildFromStrings(['abab', 'baba', 'cbba'])
+#g.buildFromStrings(['aabba', 'baaab', 'baaba'])
 
-#g.fromStrings(['abc', 'bca', 'cab', 'ddd'])
-g.fromStrings(['abc', 'bca', 'cab'])
-#g.fromStrings(['abdab', 'bacba', 'bcdb'])
-#g.fromStrings(['aabb', 'bbaa', 'cccc'])
-#g.fromStrings(['abab', 'abba', 'baba'])
-#g.fromStrings(['abb', 'bbc', 'bbb'])
-#g.fromStrings(['dbbabb', 'bbabbc', 'babbab'])
-#g.fromStrings(['bbaa', 'aaaabaa', 'babaa'])
-#g.fromStrings(['aabcabcabc', 'abcabcabcc', 'bcabcabcab'])
+#g.buildFromStrings(['abc', 'bca', 'cab', 'ddd'])
+g.buildFromStrings(['abc', 'bca', 'cab'])
+#g.buildFromStrings(['abdab', 'bacba', 'bcdb'])
+#g.buildFromStrings(['aabb', 'bbaa', 'cccc'])
+#g.buildFromStrings(['abab', 'abba', 'baba'])
+#g.buildFromStrings(['abb', 'bbc', 'bbb'])
+#g.buildFromStrings(['dbbabb', 'bbabbc', 'babbab'])
+#g.buildFromStrings(['bbaa', 'aaaabaa', 'babaa'])
+#g.buildFromStrings(['aabcabcabc', 'abcabcabcc', 'bcabcabcab'])
 #g.generate(3, 5)
-#g.fromStrings(['abaabab', 'baabaab', 'babaaba'])
-g.print()
-print(g.hg_greedy())
-print(g.optimal())
-#print(g.greedy())
+#g.buildFromStrings(['abaabab', 'baabaab', 'babaaba'])
+g.printDebug()
+print(g.getHGGreedy())
+print(g.getOptimal())
+#print(g.getGreedyString())
 print(g.correct_falling())
-g.visualize()
+g.draw()
+
 def individualStrings(lenString, individual):
     return [individual[lenString * i:lenString*(i + 1)] for i in range(len(individual) // lenString)]
 maxScore = 0
@@ -600,11 +590,11 @@ def evaluateFitness(s, ss):
     global maxScore, bestStrings
     if ss in evaluated:
         return evaluated[ss]
-    g = HG()
-    g.fromStrings(s)
-    lhg = len(g.hg_greedy())
-#    lg = len(g.greedy())
-    lo = len(g.optimal())
+    g = HGraph()
+    g.buildFromStrings(s)
+    lhg = len(g.getHGGreedy())
+#    lg = len(g.getGreedyString())
+    lo = len(g.getOptimal())
     score = lhg / lo
     if score > maxScore:
         maxScore = score
@@ -717,21 +707,21 @@ def checkCorrectnessRandomString():
             print(it)
             sys.stdout.flush()
         if randint(1, 2) == 1:
-            g = HG()
+            g = HGraph()
     #        g.generate(3, 5)
             g.generate(randint(2, 3), randint(4, 11))
             if (len(g.termStrings) > 5):
                 continue
         else:
             g = generateFromRandomStrings(3, 8, 3)
-        lhg = len(g.hg_greedy())
-        lo = len(g.optimal())
-#        lg = len(g.greedy())
+        lhg = len(g.getHGGreedy())
+        lo = len(g.getOptimal())
+#        lg = len(g.getGreedyString())
         if not g.correct_falling():
             print('Fail')
-            g.visualize()
+            g.draw()
             print(g.termStrings)
-            #print('hg_greedy:',lhg, 'optimal:', lo, 'greedy:', lg, 'score:', lhg / lo)
+            #print('getHGGreedy:',lhg, 'optimal:', lo, 'greedy:', lg, 'score:', lhg / lo)
             break
     print('End')
 #checkCorrectnessRandomString()
@@ -742,71 +732,14 @@ def checkCorrectness2RandomString():
             print(it)
             sys.stdout.flush()
         g = generateFromRandomStrings(3, 3, 3)
-        lhg = len(g.hg_greedy(True))
-        lo = len(g.optimal())
-#        lg = len(g.greedy())
+        lhg = len(g.getHGGreedy(True))
+        lo = len(g.getOptimal())
+#        lg = len(g.getGreedyString())
         if not g.correct_falling2():
             print('Fail')
-            g.visualize()
+            g.draw()
             print(g.termStrings)
-            #print('hg_greedy:',lhg, 'optimal:', lo, 'greedy:', lg, 'score:', lhg / lo)
+            #print('getHGGreedy:',lhg, 'optimal:', lo, 'greedy:', lg, 'score:', lhg / lo)
             break
     print('End')
 #checkCorrectness2RandomString()
-
-
-
-def searchRandomStringTest():
-    mx = 0
-    for it in range(2**24):
-        if it % 100 == 0:
-            print(it)
-            sys.stdout.flush()
-        g = generateFromRandomStrings(5, 5, 2)
-        lhg = len(g.hg_greedy())
-        lo = len(g.optimal())
-        lg = len(g.greedy())
-    #    print("Iteration", it, 'hg_greedy:',lhg, 'optimal:', lo, 'greedy:', lg, 'score:', lhg / lo)
-        if (lhg / lo > mx):
-            mx = lhg / lo
-            best = g.termStrings
-
-    g = HG()
-    g.fromStrings(best)
-    lhg = len(g.hg_greedy())
-    lo = len(g.optimal())
-    lg = len(g.greedy())
-    g.visualize()
-    print('Best:', best)
-    print('hg_greedy:',lhg, 'optimal:', lo, 'greedy:', lg, 'score:', lhg / lo)
-
-def searchRandomHGTest():
-    mx = 0
-    for it in range(1000000):
-        if it % 1000 == 0:
-            print(it)
-            sys.stdout.flush()
-        g = HG()
-#        g.generate(3, 5)
-        g.generate(2, randint(4, 11))
-        if (len(g.termStrings) > 5):
-            continue
-        lhg = len(g.hg_greedy())
-        lo = len(g.optimal())
-        lg = len(g.greedy())
-    #    print("Iteration", it, 'hg_greedy:',lhg, 'optimal:', lo, 'greedy:', lg, 'score:', lhg / lo)
-        if (lhg / lo > mx):
-            mx = lhg / lo
-            best = g.termStrings
-
-    g = HG()
-    g.fromStrings(best)
-    lhg = len(g.hg_greedy())
-    lo = len(g.optimal())
-    lg = len(g.greedy())
-    g.visualize()
-    print('Best:', best)
-    print('hg_greedy:',lhg, 'optimal:', lo, 'greedy:', lg, 'score:', lhg / lo)
-
-#searchRandomStringTest()
-#searchRandomHGTest()
